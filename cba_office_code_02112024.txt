@@ -1,0 +1,43 @@
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions._
+
+// Assuming SparkSession is already created
+val spark = SparkSession.builder.appName("UpdateQueryLogic").getOrCreate()
+
+// Example DataFrame (replace with your actual DataFrame)  
+val data = Seq(
+  (1, "user1", "2023-06-15 10:30:00", true),
+  (2, "user2", "2023-06-20 14:45:00", false),
+  (3, "user3", "2023-06-19 08:00:00", true)
+)
+
+val columns = Seq("user_id", "username", "last_login_timestamp", "pb_online_status")
+
+// Create the DataFrame
+var df = spark.createDataFrame(data).toDF(columns: _*)
+
+// Add surrogate key
+df = df.withColumn("surrogate_key", monotonically_increasing_id())
+
+// Example logic to compute num_accounts
+val numAccountsDF = df.groupBy("user_id").agg(count("*").alias("num_accounts"))
+
+// Example DataFrame for last_contacted (assuming df_contacts)
+val dfContacts = spark.createDataFrame(Seq(
+  (1, "2023-06-19 15:30:00"),
+  (2, "2023-06-21 09:00:00"),
+  (3, "2023-06-18 11:20:00")
+)).toDF("user_id", "last_contacted_timestamp")
+
+// Join last_contacted DataFrame with df
+val lastContactedDF = df.join(dfContacts, Seq("user_id"), "left")
+  .select("user_id", "last_contacted_timestamp")
+
+// Join num_accounts and last_contacted back to the original DataFrame
+val updatedDF = df.join(numAccountsDF, Seq("user_id"), "left")
+  .join(lastContactedDF, Seq("user_id"), "left")
+  .withColumnRenamed("count", "num_accounts")
+  .withColumnRenamed("last_contacted_timestamp", "last_contacted")
+
+// Show the resulting DataFrame
+updatedDF.show()
