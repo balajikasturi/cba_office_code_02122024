@@ -42,3 +42,36 @@ val updatedDF = df.join(numAccountsDF, Seq("user_id"), "left")
 
 // Show the resulting DataFrame
 updatedDF.show()
+
+//////////
+import org.apache.spark.sql.SparkSession
+
+// Initialize Spark session
+val spark = SparkSession.builder()
+  .appName("HDFS to S3 Migration")
+  .getOrCreate()
+
+// Set AWS credentials (if needed) for accessing S3
+spark.conf.set("spark.hadoop.fs.s3a.access.key", "<AWS_ACCESS_KEY>")
+spark.conf.set("spark.hadoop.fs.s3a.secret.key", "<AWS_SECRET_KEY>")
+spark.conf.set("spark.hadoop.fs.s3a.endpoint", "s3.amazonaws.com")
+
+// Read data from HDFS
+val hdfsPath = "hdfs://<your-hdfs-namenode>/path/to/data.csv"
+val df = spark.read.option("header", "true").option("inferSchema", "true").csv(hdfsPath)
+
+// Show the DataFrame to confirm
+df.show()
+
+// Write data to S3 in CSV format
+val s3Path = "s3a://<your-bucket-name>/path/to/output-data.csv"
+df.write.option("header", "true").csv(s3Path)
+
+// Optional: Perform transformations before writing
+val filteredDF = df.filter("salary > 5000")
+val aggregatedDF = filteredDF.groupBy("department").agg(org.apache.spark.sql.functions.avg("salary").alias("average_salary"))
+aggregatedDF.write.option("header", "true").csv("s3a://<your-bucket-name>/aggregated_salary.csv")
+
+
+
+
